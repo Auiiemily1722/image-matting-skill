@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# 产物（图片不入库，保留目录占位）
+input/*
+output/*
+!input/.gitkeep
+!output/.gitkeep
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 临时
+*.tmp
+*.log

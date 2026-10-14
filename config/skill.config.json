@@ -1,0 +1,27 @@
+{
+  "skill_name": "image-matting",
+  "version": "1.0.0",
+  "trigger": {
+    "direct_image_only": true,
+    "ask_first": false,
+    "keywords": ["抠图", "去背景", "去底色", "分离背景", "透明底", "抠出"]
+  },
+  "paths": {
+    "input_dir": "input",
+    "output_dir": "output",
+    "skill_dir": "skill",
+    "fallback_script": "skill/scripts/build_psd.py"
+  },
+  "output": {
+    "folder_format": "YYYYMMDD_HHMMSS",
+    "png_suffix": "_cutout.png",
+    "psd_suffix": "_cutout.psd",
+    "archive_original_copy": false,
+    "same_second_suffix": "_N"
+  },
+  "psd": {
+    "layers": ["original", "cutout", "mask"],
+    "layer_names": ["Original", "Cutout", "Mask Reference"],
+    "layer_names_zh": ["原图", "透明底抠图主体", "抠图蒙版参考"]
+  }
+}
