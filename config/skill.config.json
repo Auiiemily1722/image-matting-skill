@@ -22,7 +22,8 @@
   "enhance": {
     "enabled": true,
     "mode": "uniform",
-    "method": "regenerate_first",
+    "method": "upscale_first",
+    "regenerate_enabled": false,
     "regenerate_target_long_edge": 2048,
     "upscale": true,
     "upscale_multiple": 2,

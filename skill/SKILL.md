@@ -24,26 +24,27 @@ version: 1.0.0
 - 把用户发送的图片保存到项目 `input/` 目录，文件名保留原名；重名时追加时间戳后缀（如 `photo_20261014_153000.jpg`）。
 
 ### 第 2 步：清晰化（对原图；配置见 `config/skill.config.json` → `enhance`）
-- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**，按以下优先级逐级降级：
+- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。默认走**保真超分**；**生图重绘默认关闭**——生成式重绘会按语义重画细节，小图/文字/密集纹样易失真、有明显涂抹感，只在用户明确要求"重新生成、内容不必完全一致"时使用。
 
-1. **生图重绘（首选，最清晰）**：调用宿主**生图模型**，以原图为参考重新生成一张更清晰、内容大致一致的图。
-   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 表达"以参考图为基础重绘为高清版本，保持主体与构图大致一致，细节清晰、边缘干净、背景简洁"；尺寸按原图比例，**目标长边 `enhance.regenerate_target_long_edge`（默认 2048）**；
-   - **允许与原图有合理视觉出入**（AI 按语义补细节，文字/Logo 会变体）；若某张图必须保字保形（如文字 Logo），对该图改用下面的超分路径；
-   - 自检：生成结果长边应 ≥ 原图长边 ×2（或 ≥ 目标值），否则视为未生效并降级；
+1. **超分（默认，保真）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+   - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048）；
+   - `--tool-version professional` 对小图/文字细节更好（可选；standard 的 `--multiple` 上限 8）；
+   - 若结果尺寸未放大，改用 `--target-width` / `--target-height` 指定目标尺寸重试（保持宽高比）；
+   - **自检（必须）**：用 Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试或继续降级，不得假装成功；
    - 结果保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；下载 URL 用 `curl.exe -L -o "<保存路径>" "<URL>"`（见下方「下载约定」）。
 
-2. **超分（兜底一，保真）**：宿主无生图能力 / 生图失败 → `mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
-   - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048）；`--tool-version professional` 对小图/文字细节更好（可选）；
-   - 若结果尺寸未放大，改用 `--target-width` / `--target-height` 指定目标尺寸重试（保持宽高比）；
-   - **自检（必须）**：用 Pillow 校验输出长边已大于原图（真放大才算成功）；未放大要重试或继续降级，不得假装成功。
+2. **生图重绘（默认关闭；仅当用户明确要求时启用）**：调用宿主**生图模型**，以原图为参考重绘高清版。
+   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 表达"以参考图为基础重绘为高清版本，保持主体与构图大致一致"；尺寸按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048）；
+   - **警告（执行前必须向用户说明）**：生成式重绘允许与原图有合理出入，文字/Logo/纹样会变体，小图易失真、涂抹感明显；必须保字/保形的图禁用此路径；
+   - 重绘结果明显失真、内容崩坏或不像原图 → 放弃本路径，改用超分；结果保存 `input/原图名_enhanced.png`。
 
-3. **锐化（兜底二）**：生图与超分都不可用 → 直接用原图抠图，抠图完成后运行：
+3. **锐化兜底**：生图与超分都不可用 → 直接用原图抠图，抠图完成后运行：
 
    ```powershell
    python skill/scripts/enhance_cutout.py --input <透明PNG> --output <增强PNG> --strength 1.0
    ```
 
-   只对 RGB 通道做 UnsharpMask 锐化，alpha 通道原样保留、尺寸不变；`--strength` 0.5~2.0。并在汇报中说明"本次仅锐化，未重绘/未超分"。
+   只对 RGB 通道做 UnsharpMask 锐化，alpha 通道原样保留、尺寸不变；`--strength` 0.5~2.0。并在汇报中说明"本次仅锐化，未超分/未重绘"。
 
 ### 第 3 步：抠图（核心，调用宿主能力）
 - 对**第 2 步的输出图（超分原图或原图）**调用宿主 agent 内置的**图像抠图 / 去背景 / 主体分离**能力，生成透明底 PNG。

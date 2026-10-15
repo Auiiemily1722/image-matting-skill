@@ -39,7 +39,7 @@
    ▼
 input/product.jpg                          ← 第1步：原图存档
    │
-   ▼（清晰化：生图重绘优先 → 超分 → 锐化兜底）
+   ▼（清晰化：超分保真默认，重绘可选/默认关，锐化兜底）
 input/product_enhanced.png                 ← 第2步：清晰化（目标长边 2048）
    │
    ▼（agent 自身抠图能力）
@@ -85,7 +85,7 @@ product_cutout.psd                          ← 第4步：PSD
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
 | 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
-| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认**生图重绘优先**（目标长边 2048），失败降级超分（按目标长边算倍率 2~8x）；仍不够清晰可调高 `enhance.regenerate_target_long_edge` / `target_long_edge`；文字/Logo 类必须保字的图指定走超分 |
+| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认**超分保真**（按目标长边 2048 算倍率 2~8x）；仍不够清晰可调高 `enhance.target_long_edge` 或换 `--tool-version professional`；生图重绘默认关闭（易失真/涂抹），仅用户点名时开启 |
 | 执行窗口 agent 想自己写脚本 / 改项目 | 未读 AGENTS.md 或偏离定位 | 明确告知：禁止编写或修改脚本，只准调用 `skill/scripts/` 现成脚本与宿主自身能力（AGENTS.md 硬性规则 6）；需要改动项目由所有者处理 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
@@ -108,8 +108,9 @@ product_cutout.psd                          ← 第4步：PSD
 - `output.*`：改文件夹/文件命名格式；
 - `enhance.enabled`：`true`=每次抠图前统一清晰化 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.method`：`regenerate_first`=生图重绘优先（默认）→ 超分 → 锐化逐级降级；
-- `enhance.regenerate_target_long_edge`：生图重绘目标长边 px（默认 2048；重绘允许与原图有合理出入，必须保字/保形的图走超分）；
+- `enhance.method`：`upscale_first`=超分保真优先（默认）→ 锐化兜底；生图重绘由 `regenerate_enabled` 单独开关；
+- `enhance.regenerate_enabled`：`false`=生图重绘默认关闭（生成式重绘易失真/涂抹，仅用户点名时开启）；
+- `enhance.regenerate_target_long_edge`：生图重绘目标长边 px（默认 2048）；
 - `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
 - `enhance.target_long_edge`：超分目标长边 px（默认 2048；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
 - `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；
