@@ -25,19 +25,20 @@ version: 1.0.0
 - **大图预处理（防"图片太大"）**：原图 >10MB 或长边 >4096 时，先用宿主 `mediakit-cli image resize-image` 把长边压到 2048 再存入 `input/`（各环节存在输入尺寸/体积上限，详见故障排查）。
 
 ### 第 2 步：清晰化（对原图；配置见 `config/skill.config.json` → `enhance`）
-- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。首选 **seedream 生图模型 4K 保色清晰化**（清晰度上限最高，已实测端到端可用）；**保字自检**不过（文字被改写）→ 自动回退**超分 + 线条锐化**保字路线；锐化脚本最终兜底。
+- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。**按是否含文字分流**：含文字/字体的图**直接走「超分 + 线条锐化」保字路线**（seedream 会把小文字改写/脑补成乱字，含文字图不走 seedream）；无文字纯图形图走「seedream 4K 保色清晰化」（清晰度上限最高）。**一次只走一条路线**（不要两条都生成后乱选）；任一路线结果都要自检，不符再降级。
 
-1. **seedream 清晰化（首选，默认开启）**：调用宿主**生图模型**，以原图为参考重绘高清版。
+1. **无文字图：seedream 清晰化（默认路线）**：调用宿主**生图模型**，以原图为参考重绘高清版。
    - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 固定为："将参考图放大重绘为4K超高清版本，保持图片中图案原本的颜色与内容完全不变，保持原有的平面插画效果与材质质感（不要变成毛绒、3D、立体或照片质感），让图片变清晰，线条更锐利，细节更丰富，不改变图案构图"；
    - 尺寸：按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048；seedream 实际输出上限约 2048~2100，"4K"为营销叫法）；
    - 结果保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；下载用 `curl.exe -L -o "<保存路径>" "<URL>"`（见下方「下载约定」）；
-   - **保字自检（必须）**：清晰化后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）：若文字被改写（丢字/乱字/变体）、**材质/风格明显改变（变毛绒、3D、照片质感或严重涂抹）** 或内容明显崩坏 → **该图回退**到下面的超分+锐化保字路线；
+   - **自检（必须）**：清晰化后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）。**只认明显问题**：文字明显乱码/错字、内容崩坏、材质/风格明显改变（变毛绒/3D/照片质感/严重涂抹）→ 回退到 2 的超分路线；**轻微文字补全（如 PLANE→PLANET，原图文字太小看不清时的补全）不算改写，不得回退**；
    - 无文字纯图形图通常直接通过自检（实测纹身/纯图形效果最佳）。
 
-2. **超分 + 线条锐化（保字 / 回退路线）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+2. **含文字图：超分 + 线条锐化（保字路线）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
    - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048；standard 上限 8）；若结果尺寸未放大，改用 `--target-width` / `--target-height` 重试（保持宽高比）；
-   - **自检（必须）**：Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
-   - **超分后追加线条锐化**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用）；锐化后文字不被改写；
+   - **尺寸自检（必须）**：Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
+   - **超分后追加线条锐化**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用）；
+   - **结果自检（必须，防脑补乱字）**：超分对超小/模糊文字也会脑补（实测短裤小字被猜成乱码）——锐化后用 OCR/目视检查：出现明显乱码/错字 → 降级到 4 锐化兜底，或直接原图抠图并在汇报中说明；轻微补全不算；
    - 最终结果存 `input/原图名_enhanced.png`；下载 URL 用 `curl.exe -L -o`。
 
 3. **professional 超分（可选）**：无文字纯图形图可改用 `--tool-version professional`（发丝级，线条纹理更锐利；**会按语义重写个别字符**——实测 `EVERY DAY'S`→`EVERY DAY IS`，含文字图禁用；输入须宽高均 ≥256，不足先 standard 预放大）；同样需尺寸校验。
