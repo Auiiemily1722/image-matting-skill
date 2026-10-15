@@ -85,7 +85,7 @@ product_cutout.psd                          ← 第4步：PSD
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
 | 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
-| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认先 AI 超分再抠图（`enhance-image --multiple 2`）；仍不够清晰可调高 `enhance.upscale_multiple` / `target_long_edge`，或换 `--tool-version professional` |
+| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认先 AI 超分再抠图：按目标长边 2048 算倍率（2~8x）；若发现输出未放大（尺寸没变），让 agent 校验尺寸并用 `--target-width/--target-height` 重试；仍不够清晰可调高 `enhance.target_long_edge` 或换 `--tool-version professional` |
 | 执行窗口 agent 想自己写脚本 / 改项目 | 未读 AGENTS.md 或偏离定位 | 明确告知：禁止编写或修改脚本，只准调用 `skill/scripts/` 现成脚本与宿主自身能力（AGENTS.md 硬性规则 6）；需要改动项目由所有者处理 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
@@ -108,8 +108,8 @@ product_cutout.psd                          ← 第4步：PSD
 - `output.*`：改文件夹/文件命名格式；
 - `enhance.enabled`：`true`=每次抠图前统一超分增强 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.upscale_multiple`：超分倍数（standard 1~8，默认 2）；
-- `enhance.target_long_edge`：目标长边 px（原图长边小于该值才超分，默认 1024）；
+- `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
+- `enhance.target_long_edge`：目标长边 px（默认 2048；原图长边 ≥ 该值则不超分；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
 - `enhance.fallback_strength`：无宿主增强能力时的兜底锐化强度（0.5~2.0）；
 - `psd.layers`：增删 PSD 图层。
 

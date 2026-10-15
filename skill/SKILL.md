@@ -26,9 +26,12 @@ version: 1.0.0
 ### 第 2 步：超分清晰化（对原图，优先；配置见 `config/skill.config.json` → `enhance`）
 - 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做 AI 超分增强，再抠图**——输出分辨率随超分提升，而不是锐化一张小图。
 - 优先：调用宿主 agent 原生图像增强能力。
-  - 豆包 Work 映射：`mediakit-cli image enhance-image --image-url <原图> --multiple 2`
-    - `--multiple` 超分倍数（standard 支持 1~8，默认 2）；`--tool-version professional` 效果更好（可选）；
-    - 规则：原图长边 < `enhance.target_long_edge`（默认 1024）时才超分；增强图保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；
+  - 豆包 Work 映射：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+    - **倍率 m 按目标长边计算**：`m = min(8, max(2, round(target_long_edge / 原图长边)))`，`target_long_edge` 默认 **2048**（`config/skill.config.json` → `enhance.target_long_edge` 可调）。示例：原图长边 120px → m=8（约 960px）；长边 400px → m=5（约 2000px）；长边 ≥2048px → 不超分。
+    - `--tool-version professional` 对小图 / 文字 / Logo 的细节更好（可选；standard 的 `--multiple` 上限 8）。
+    - **若增强结果尺寸未放大**（和输入一样），改用 `--target-width` / `--target-height` 指定目标尺寸重试（保持宽高比）。
+    - **自检（必须）**：增强后用 Pillow 读取结果，确认输出长边已大于原图长边（真放大才算成功）；放大不成功要重试或走兜底，不得假装成功。
+    - 增强图保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；
     - 下载增强结果 URL 用 `curl.exe -L -o "<保存路径>" "<URL>"`（见下方「下载约定」）。
 - 兜底（宿主无增强能力 / 调用失败）：跳过超分，直接用原图抠图；抠图完成后对透明 PNG 运行锐化脚本（不增加分辨率，仅改善观感）：
 
