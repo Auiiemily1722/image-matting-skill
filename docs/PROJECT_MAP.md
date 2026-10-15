@@ -22,8 +22,9 @@
 | `requirements.txt` | 配置 | 依赖清单（仅 psd-tools） | setup.ps1 |
 | `config/skill.config.json` | 配置 | **机器可读默认值**：触发开关、命名格式、路径约定 | agent 执行时读 |
 | `docs/PROJECT_MAP.md` | 文档 | 本文件 | agent/人类 |
-| `skill/SKILL.md` | 技能 | 技能定义 + 5 步执行流程（可被安装为运行时技能） | agent 执行时读 |
+| `skill/SKILL.md` | 技能 | 技能定义 + 6 步执行流程（可被安装为运行时技能） | agent 执行时读 |
 | `skill/scripts/build_psd.py` | 脚本 | PSD 兜底：原图+透明PNG → 三层 PSD | agent 调用 |
+| `skill/scripts/enhance_cutout.py` | 脚本 | 清晰化兜底：透明PNG → 锐化增强PNG（尺寸不变、alpha 保留） | agent 调用 |
 | `scripts/setup.ps1` | 脚本 | 一键配置：建目录、装依赖、可选安装技能 | 人类/agent 首次运行 |
 | `input/` | 数据 | **输入原图留档**（agent 把用户发的图存这里） | agent 写入 |
 | `output/` | 产物 | **生成结果归档**（每任务一个时间戳子文件夹） | agent 写入 |
@@ -41,12 +42,15 @@ input/product.jpg                          ← 第1步：原图存档
    ▼（agent 自身抠图能力）
 product_cutout.png（透明底，尺寸=原图）       ← 第2步：抠图
    │
-   ▼（build_psd.py 兜底 或 agent 原生能力）
-product_cutout.psd                          ← 第3步：PSD
+   ▼（宿主原生增强 或 enhance_cutout.py 兜底）
+product_cutout.png（清晰化增强，文件名不变）   ← 第3步：清晰化
    │
-   ├── 对话框交付：product_cutout.png + product_cutout.psd   ← 第4步
+   ▼（build_psd.py 兜底 或 agent 原生能力）
+product_cutout.psd                          ← 第4步：PSD
+   │
+   ├── 对话框交付：product_cutout.png + product_cutout.psd   ← 第5步
    └── output/20261014_153000/
-          ├── product_cutout.png           ← 第5步：归档
+          ├── product_cutout.png           ← 第6步：归档
           └── product_cutout.psd
 ```
 
@@ -79,6 +83,7 @@ product_cutout.psd                          ← 第3步：PSD
 | `build_psd.py` 报 ModuleNotFoundError | 未装依赖 | 运行 `scripts/setup.ps1` |
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
+| 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
 ## 7. git 与产物同步
@@ -98,6 +103,9 @@ product_cutout.psd                          ← 第3步：PSD
 - `trigger.ask_first`：改 `true` 后，仅发图不说话时会先询问再执行（默认直接执行）；
 - `trigger.keywords`：增减触发关键词；
 - `output.*`：改文件夹/文件命名格式；
+- `enhance.enabled`：`true`=每次抠图后统一清晰化增强 / `false`=关闭增强；
+- `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
+- `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；
 - `psd.layers`：增删 PSD 图层。
 
 改完配置无需重新安装，agent 每次执行都会重新读取。

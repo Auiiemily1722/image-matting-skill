@@ -9,7 +9,7 @@
 
 用户在本项目的对话窗中**直接发送一张图片**（无需任何文字指令）时：
 
-1. agent 调用**自身内置的图像抠图 / 去背景 / 主体分离能力**，把主体从背景中分离，得到透明底 PNG；
+1. agent 调用**自身内置的图像抠图 / 去背景 / 主体分离能力**，把主体从背景中分离，得到透明底 PNG，并做**统一清晰化增强**（优先宿主原生增强能力，脚本兜底）；
 2. 在对话框**同时交付两个文件**：`原图名_cutout.png`（透明底）+ `原图名_cutout.psd`（Photoshop 可直接打开，三层：原图 / 透明主体 / 蒙版参考，图层名为英文 Original / Cutout / Mask Reference）；
 3. 两份文件同时归档到 `output/YYYYMMDD_HHMMSS/`（每次任务新建一个时间戳文件夹，互不覆盖）。
 
@@ -40,17 +40,18 @@
 
 1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；
 2. 抠图：调用自身抠图能力 → 透明底 PNG（**尺寸必须与原图一致**）；
-3. PSD：优先 agent 原生 PSD 能力；否则运行
-   `python skill/scripts/build_psd.py --original <原图> --cutout <透明PNG> --output <PSD路径>`
-4. 交付：对话框同时交付 PNG + PSD 两个文件；
-5. 归档：`output/YYYYMMDD_HHMMSS/` 下放置 `原图名_cutout.png` + `原图名_cutout.psd`。
+3. 清晰化：对透明 PNG 做**统一清晰化增强**（优先宿主原生增强能力，豆包 Work 用 `mediakit-cli image enhance-image`/`sharpen-image`；无能力/失败则运行 `python skill/scripts/enhance_cutout.py --input <透明PNG> --output <增强PNG> --strength 1.0`）；增强后尺寸必须仍与原图一致；增强失败可跳过并在汇报中说明；
+4. PSD：优先 agent 原生 PSD 能力；否则运行
+   `python skill/scripts/build_psd.py --original <原图> --cutout <增强PNG> --output <PSD路径>`
+5. 交付：对话框同时交付 PNG（清晰化增强版）+ PSD 两个文件；
+6. 归档：`output/YYYYMMDD_HHMMSS/` 下放置 `原图名_cutout.png` + `原图名_cutout.psd`。
 
 ## 六、硬性规则（不得违反）
 
 1. 每次任务**必须**同时交付 PNG + PSD 两份，不允许只给一张。
 2. 每次任务**必须**在 `output/` 下新建独立时间戳文件夹，**不允许覆盖**已有产物。
 3. 原图**必须**留存到 `input/`。
-4. 透明底 PNG 尺寸必须与原图一致；主体边缘干净，发丝、半透明物尽量保留。
+4. 透明底 PNG 尺寸必须与原图一致（清晰化增强后同样必须一致）；主体边缘干净，发丝、半透明物尽量保留；交付版为增强后的清晰版本。
 5. 产物（`input/`、`output/` 内容）不入 git 仓库（见 `.gitignore`），仓库只同步"项目本身"。
 
 ## 七、目录地图（速览，详见 `docs/PROJECT_MAP.md`）

@@ -19,6 +19,13 @@
     "archive_original_copy": false,
     "same_second_suffix": "_N"
   },
+  "enhance": {
+    "enabled": true,
+    "mode": "uniform",
+    "method": "host_native_first",
+    "fallback_script": "skill/scripts/enhance_cutout.py",
+    "fallback_strength": 1.0
+  },
   "psd": {
     "layers": ["original", "cutout", "mask"],
     "layer_names": ["Original", "Cutout", "Mask Reference"],

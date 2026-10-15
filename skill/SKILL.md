@@ -33,22 +33,36 @@ version: 1.0.0
   - 主体边缘干净，发丝、半透明物（玻璃、纱等）尽量保留；
   - 背景完全透明（alpha=0），不残留白边 / 色边。
 
-### 第 3 步：生成 PSD
+### 第 3 步：清晰化增强（统一开启，配置见 `config/skill.config.json` → `enhance`）
+- 对第 2 步的透明 PNG 做清晰化处理（用户反馈直接输出可能偏糊；**增强后的 PNG 就是交付与归档的版本，文件名不变**）。
+- 优先：调用宿主 agent 原生图像增强 / 锐化能力。
+  - 豆包 Work 映射：`mediakit-cli image enhance-image --image-url <透明PNG>`（智能清晰化）；若其改变输出尺寸或效果不佳，改用 `mediakit-cli image sharpen-image --image-url <透明PNG>`（锐化，保持尺寸）。
+  - **硬约束：增强后的 PNG 尺寸必须仍与原图一致**——若增强结果改变尺寸，先缩放对齐回原图尺寸再进入下一步。
+- 兜底（宿主无增强能力 / 调用失败）：运行脚本（与 SKILL.md 同级目录）：
+
+  ```powershell
+  python skill/scripts/enhance_cutout.py --input <透明PNG> --output <增强PNG> --strength 1.0
+  ```
+
+  脚本只对 RGB 通道做 UnsharpMask 锐化，alpha 通道原样保留、尺寸不变；`--strength` 0.5~2.0（越大越锐）。
+- 若增强环节整体失败：保留第 2 步的原始透明 PNG 继续后续流程（不阻塞交付），并在汇报中说明本次未增强。
+
+### 第 4 步：生成 PSD
 - 优先：宿主 agent 有原生 PSD / PS 兼容文件生成能力 → 生成三层 PSD（原图 / 透明主体 / 蒙版参考）。
 - 兜底：运行脚本（脚本与 SKILL.md 同级目录）：
 
   ```powershell
-  python skill/scripts/build_psd.py --original <input/原图> --cutout <透明PNG> --output <output/时间戳/原图名_cutout.psd>
+  python skill/scripts/build_psd.py --original <input/原图> --cutout <增强PNG> --output <output/时间戳/原图名_cutout.psd>
   ```
 
   脚本生成三层（**图层名用英文** Original / Cutout / Mask Reference，保证 Photoshop 等软件跨平台显示兼容）：①原图 ②透明底抠图主体 ③抠图蒙版参考（白=保留 / 黑=去除，取自 PNG 的 alpha 通道）。
   抠图尺寸与原图不一致时，脚本自动缩放对齐并在 stderr 告警。
 
-### 第 4 步：对话框交付
-- **必须同时**交付两个文件：`原图名_cutout.png` + `原图名_cutout.psd`（使用宿主文件交付机制，如 present_files）。
+### 第 5 步：对话框交付
+- **必须同时**交付两个文件：`原图名_cutout.png`（清晰化增强版）+ `原图名_cutout.psd`（使用宿主文件交付机制，如 present_files）。
 - 交付文件与归档文件为同一份：先归档到 `output/` 再交付，或交付后立即同步归档，保证两边一致。
 
-### 第 5 步：归档
+### 第 6 步：归档
 - 在 `output/` 下新建文件夹，命名 `YYYYMMDD_HHMMSS`（本地时间、24 小时制，如 `20261014_153000`）。
 - 文件夹内放置：`原图名_cutout.png`、`原图名_cutout.psd`。
 - 同一秒内多次任务 → 文件夹名追加 `_1`、`_2`… 防重。
