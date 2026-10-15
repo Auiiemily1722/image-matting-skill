@@ -39,7 +39,7 @@
 ## 五、执行步骤（详见 `skill/SKILL.md`）
 
 1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；**大图预处理**：原图 >10MB 或长边 >4096 时先 `mediakit-cli image resize-image` 压到长边 2048 再存；
-2. 清晰化：**先对原图做清晰化再抠图**：首选 **seedream 生图模型 4K 保色清晰化**（豆包 Work 走 doubao-creative-design 流程 image_edit 参考生成，prompt=“4k，保持图片中图案原本的颜色与内容完全不变，让图片变清晰”，目标长边 2048，结果存 `input/原图名_enhanced.png`）；**保字自检**：清晰化后与原图对比（image-ocr/目视），文字被改写/内容崩坏 → 该图**自动回退超分+线条锐化**保字路线（`enhance-image --multiple <m>`，m=min(8,max(2,round(2048/原图长边)))，校验尺寸放大，未放大用 `--target-width/--target-height` 重试，超分后再跑 `enhance_cutout.py --strength 1.2`）；无文字纯图形图可改用 professional 超分（会重写个别字符，含文字图禁用）；超分不可用时原图直接抠图+锐化兜底（汇报说明）；
+2. 清晰化：**先对原图做清晰化再抠图**：首选 **seedream 生图模型 4K 保色清晰化**（豆包 Work 走 doubao-creative-design 流程 image_edit 参考生成，prompt=“4k，保持图片中图案原本的颜色，平面插画效果，内容完全不变，让图片变清晰”，目标长边 2048，结果存 `input/原图名_enhanced.png`）；**保字/保风格自检**：清晰化后与原图对比（image-ocr/目视），文字被改写、材质/风格明显改变（变毛绒/3D/涂抹）、内容崩坏 → 该图**自动回退超分+线条锐化**保字路线（`enhance-image --multiple <m>`，m=min(8,max(2,round(2048/原图长边)))，校验尺寸放大，未放大用 `--target-width/--target-height` 重试，超分后再跑 `enhance_cutout.py --strength 1.2`）；无文字纯图形图可改用 professional 超分（会重写个别字符，含文字图禁用）；超分不可用时原图直接抠图+锐化兜底（汇报说明）；
 3. 抠图：对（超分后）原图调用自身抠图能力 → 透明底 PNG（**尺寸=抠图输入尺寸，必须 ≥ 原图**）；
 4. PSD：优先 agent 原生 PSD 能力；否则运行
    `python skill/scripts/build_psd.py --original <超分原图或原图> --cutout <透明PNG> --output <PSD路径>`
