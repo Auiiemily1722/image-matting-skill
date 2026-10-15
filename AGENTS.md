@@ -39,7 +39,7 @@
 ## 五、执行步骤（详见 `skill/SKILL.md`）
 
 1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；
-2. 清晰化：**先对原图做清晰化再抠图**：默认 **超分保真**（`enhance-image --multiple <m>`，m=min(8, max(2, round(2048/原图长边)))，校验尺寸确实放大，未放大用 `--target-width/--target-height` 重试）；**生图重绘默认关闭**（仅用户明确要求"重新生成/允许出入"时使用——豆包 Work 走 doubao-creative-design 流程 image_edit 参考生成，目标长边 2048；注意生成式重绘易失真/涂抹、文字纹样会变体，明显失真时放弃改用超分）；超分/重绘不可用时原图直接抠图+抠图后锐化兜底（`enhance_cutout.py`，汇报说明）；增强/重绘图存 `input/原图名_enhanced.png`；
+2. 清晰化：**先对原图做清晰化再抠图**：默认 **超分保真 + 超分后线条锐化**（`enhance-image --multiple <m>`，m=min(8, max(2, round(2048/原图长边)))，校验尺寸确实放大，未放大用 `--target-width/--target-height` 重试；超分后再对 RGB 做一次锐化 `enhance_cutout.py --strength 1.2`，保字且线条更锐利）；**无文字的纯图形图可改用 professional 超分**（`--tool-version professional`，输入须≥256px，注意会重写个别字符，含文字图禁用）；**生图重绘默认关闭**（仅用户明确要求"重新生成/允许出入"时使用，易失真/涂抹、文字纹样会变体，明显失真时放弃改用超分）；超分不可用时原图直接抠图+抠图后锐化兜底（`enhance_cutout.py`，汇报说明）；增强/重绘图存 `input/原图名_enhanced.png`；
 3. 抠图：对（超分后）原图调用自身抠图能力 → 透明底 PNG（**尺寸=抠图输入尺寸，必须 ≥ 原图**）；
 4. PSD：优先 agent 原生 PSD 能力；否则运行
    `python skill/scripts/build_psd.py --original <超分原图或原图> --cutout <透明PNG> --output <PSD路径>`
