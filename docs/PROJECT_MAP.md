@@ -75,6 +75,7 @@ product_cutout.psd                          ← 第3步：PSD
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | agent 说"无法抠图" | 宿主 agent 无抠图能力 | 本项目不可用，换支持抠图的 agent |
+| agent 问"用什么抠图" | 豆包 Work 内置 MediaKit 抠图 | `mediakit-cli image remove-image-background`，场景选择见 skill/SKILL.md 第 2 步（已验证可用） |
 | `build_psd.py` 报 ModuleNotFoundError | 未装依赖 | 运行 `scripts/setup.ps1` |
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |

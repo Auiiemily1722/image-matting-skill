@@ -16,6 +16,7 @@
 ## 二、前置条件（硬性）
 
 - 宿主 agent **必须具备图像抠图（去背景 / 主体分离）能力**。本项目是"操作指南"，不内置抠图引擎，也不提供离线抠图工具。
+  - 在豆包 Work 环境中，该能力 = 内置 MediaKit 云端抠图 `mediakit-cli image remove-image-background`（已验证可用），调用细节见 `skill/SKILL.md` 第 2 步。
 - 本地唯一软件依赖：Python 3.9+ 与 `psd-tools`（仅用于 PSD 兜底脚本 `skill/scripts/build_psd.py`）。
 - 一键配置：`scripts/setup.ps1`（Windows PowerShell）。
 

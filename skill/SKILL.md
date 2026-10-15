@@ -24,6 +24,10 @@ version: 1.0.0
 
 ### 第 2 步：抠图（核心，调用宿主能力）
 - 调用宿主 agent 内置的**图像抠图 / 去背景 / 主体分离**能力，生成透明底 PNG。
+- **豆包 Work 环境映射（已验证可用）**：`mediakit-cli image remove-image-background --image-url <原图路径> --scene <general|human|product>`
+  - `human`=真人人像；`product`=商品主体；`general`=通用（动漫/二次元、商标/Logo、不确定主体，或前两者效果不佳时改用）；
+  - 返回透明 PNG 下载 URL（**有效期 24 小时，须立即下载**），默认输出与原图同尺寸；
+  - 若模型输出尺寸与原图不一致，须缩放对齐到原图（build_psd.py 会自动告警并对齐）。
 - 质量要求：
   - 输出尺寸与原图**完全一致**；
   - 主体边缘干净，发丝、半透明物（玻璃、纱等）尽量保留；
