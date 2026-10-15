@@ -39,7 +39,7 @@
 ## 五、执行步骤（详见 `skill/SKILL.md`）
 
 1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；
-2. 超分清晰化：**先对原图做 AI 超分增强**（豆包 Work 用 `mediakit-cli image enhance-image --image-url <原图> --multiple <m>`；**m=min(8, max(2, round(2048/原图长边)))**，目标长边 2048（`config` → `enhance.target_long_edge` 可调）；**增强后必须校验尺寸确实放大**，未放大改用 `--target-width/--target-height` 重试；增强图存 `input/原图名_enhanced.png`；宿主无增强能力/失败 → 用原图继续，抠图后跑 `python skill/scripts/enhance_cutout.py` 锐化兜底，并在汇报中说明；
+2. 清晰化：**先对原图做清晰化再抠图**，按优先级：① **生图重绘**（首选；宿主生图模型以原图为参考重绘高清版，内容大致一致、允许合理出入，目标长边 2048——豆包 Work 走 doubao-creative-design 流程 image_edit 参考生成；必须保字/保形的图改用超分）；② **超分**（`enhance-image --multiple <m>`，m=min(8, max(2, round(2048/原图长边)))，校验尺寸确实放大，未放大用 `--target-width/--target-height` 重试）；③ **锐化兜底**（原图直接抠图，抠图后跑 `python skill/scripts/enhance_cutout.py`，汇报中说明未重绘/未超分）；增强/重绘图存 `input/原图名_enhanced.png`；
 3. 抠图：对（超分后）原图调用自身抠图能力 → 透明底 PNG（**尺寸=抠图输入尺寸，必须 ≥ 原图**）；
 4. PSD：优先 agent 原生 PSD 能力；否则运行
    `python skill/scripts/build_psd.py --original <超分原图或原图> --cutout <透明PNG> --output <PSD路径>`

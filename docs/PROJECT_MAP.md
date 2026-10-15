@@ -39,8 +39,8 @@
    ▼
 input/product.jpg                          ← 第1步：原图存档
    │
-   ▼（宿主 enhance-image 超分，原图长边<1024 时；无能力则用原图+锐化兜底）
-input/product_enhanced.png                 ← 第2步：超分清晰化
+   ▼（清晰化：生图重绘优先 → 超分 → 锐化兜底）
+input/product_enhanced.png                 ← 第2步：清晰化（目标长边 2048）
    │
    ▼（agent 自身抠图能力）
 product_cutout.png（透明底，尺寸=超分后）    ← 第3步：抠图
@@ -85,7 +85,7 @@ product_cutout.psd                          ← 第4步：PSD
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
 | 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
-| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认先 AI 超分再抠图：按目标长边 2048 算倍率（2~8x）；若发现输出未放大（尺寸没变），让 agent 校验尺寸并用 `--target-width/--target-height` 重试；仍不够清晰可调高 `enhance.target_long_edge` 或换 `--tool-version professional` |
+| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认**生图重绘优先**（目标长边 2048），失败降级超分（按目标长边算倍率 2~8x）；仍不够清晰可调高 `enhance.regenerate_target_long_edge` / `target_long_edge`；文字/Logo 类必须保字的图指定走超分 |
 | 执行窗口 agent 想自己写脚本 / 改项目 | 未读 AGENTS.md 或偏离定位 | 明确告知：禁止编写或修改脚本，只准调用 `skill/scripts/` 现成脚本与宿主自身能力（AGENTS.md 硬性规则 6）；需要改动项目由所有者处理 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
@@ -106,11 +106,13 @@ product_cutout.psd                          ← 第4步：PSD
 - `trigger.ask_first`：改 `true` 后，仅发图不说话时会先询问再执行（默认直接执行）；
 - `trigger.keywords`：增减触发关键词；
 - `output.*`：改文件夹/文件命名格式；
-- `enhance.enabled`：`true`=每次抠图前统一超分增强 / `false`=关闭增强；
+- `enhance.enabled`：`true`=每次抠图前统一清晰化 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
+- `enhance.method`：`regenerate_first`=生图重绘优先（默认）→ 超分 → 锐化逐级降级；
+- `enhance.regenerate_target_long_edge`：生图重绘目标长边 px（默认 2048；重绘允许与原图有合理出入，必须保字/保形的图走超分）；
 - `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
-- `enhance.target_long_edge`：目标长边 px（默认 2048；原图长边 ≥ 该值则不超分；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
-- `enhance.fallback_strength`：无宿主增强能力时的兜底锐化强度（0.5~2.0）；
+- `enhance.target_long_edge`：超分目标长边 px（默认 2048；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
+- `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；
 - `psd.layers`：增删 PSD 图层。
 
 改完配置无需重新安装，agent 每次执行都会重新读取。
