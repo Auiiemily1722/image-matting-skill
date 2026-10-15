@@ -8,7 +8,7 @@
 
 **三条铁律**：
 1. 交付永远成对（PNG + PSD），不拆单；
-2. 每次任务在 `output/` 下新建独立时间戳文件夹，不覆盖；
+2. 每批任务在 `output/` 下新建独立时间戳文件夹（一批图共用一个），不覆盖；
 3. 原图必存 `input/`。
 
 ## 2. 目录逐项说明
@@ -26,8 +26,8 @@
 | `skill/scripts/build_psd.py` | 脚本 | PSD 兜底：原图+透明PNG → 三层 PSD | agent 调用 |
 | `skill/scripts/enhance_cutout.py` | 脚本 | 清晰化兜底：透明PNG → 锐化增强PNG（尺寸不变、alpha 保留） | agent 调用 |
 | `scripts/setup.ps1` | 脚本 | 一键配置：建目录、装依赖、可选安装技能 | 人类/agent 首次运行 |
-| `input/` | 数据 | **输入原图留档**（agent 把用户发的图存这里） | agent 写入 |
-| `output/` | 产物 | **生成结果归档**（每任务一个时间戳子文件夹） | agent 写入 |
+| `input/` | 数据 | **输入原图留档**（原图 + 超分中间图 `原图名_enhanced.png`） | agent 写入 |
+| `output/` | 产物 | **生成结果归档**（每批任务一个时间戳子文件夹，含各图 PNG+PSD） | agent 写入 |
 
 ## 3. 一次完整任务的路径流（示例）
 
@@ -39,22 +39,22 @@
    ▼
 input/product.jpg                          ← 第1步：原图存档
    │
-   ▼（agent 自身抠图能力）
-product_cutout.png（透明底，尺寸=原图）       ← 第2步：抠图
+   ▼（宿主 enhance-image 超分，原图长边<1024 时；无能力则用原图+锐化兜底）
+input/product_enhanced.png                 ← 第2步：超分清晰化
    │
-   ▼（宿主原生增强 或 enhance_cutout.py 兜底）
-product_cutout.png（清晰化增强，文件名不变）   ← 第3步：清晰化
+   ▼（agent 自身抠图能力）
+product_cutout.png（透明底，尺寸=超分后）    ← 第3步：抠图
    │
    ▼（build_psd.py 兜底 或 agent 原生能力）
 product_cutout.psd                          ← 第4步：PSD
    │
    ├── 对话框交付：product_cutout.png + product_cutout.psd   ← 第5步
-   └── output/20261014_153000/
+   └── output/20261014_153000/（同一批图共用一个文件夹）
           ├── product_cutout.png           ← 第6步：归档
           └── product_cutout.psd
 ```
 
-同一秒多次任务 → `output/20261014_153000_1/`、`_2/`… 防重。
+同一秒多批任务 → `output/20261014_153000_1/`、`_2/`… 防重。
 
 ## 4. 命名规范（与 config/skill.config.json 对应）
 
@@ -64,6 +64,7 @@ product_cutout.psd                          ← 第4步：PSD
 | PNG | `原图名_cutout.png`（原图名=去扩展名的文件名） | `product_cutout.png` |
 | PSD | `原图名_cutout.psd` | `product_cutout.psd` |
 | 原图留档 | 原名；重名追加时间戳 | `product.jpg` / `photo_20261014_153000.jpg` |
+| 超分中间图 | `原图名_enhanced.png`（存 `input/`，供抠图与 PSD 使用） | `product_enhanced.png` |
 | 同秒防重 | 文件夹名追加 `_1` `_2` | `20261014_153000_1` |
 
 ## 5. 技能安装（可选，让 agent 自动发现技能）
@@ -84,6 +85,7 @@ product_cutout.psd                          ← 第4步：PSD
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
 | 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
+| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认先 AI 超分再抠图（`enhance-image --multiple 2`）；仍不够清晰可调高 `enhance.upscale_multiple` / `target_long_edge`，或换 `--tool-version professional` |
 | 执行窗口 agent 想自己写脚本 / 改项目 | 未读 AGENTS.md 或偏离定位 | 明确告知：禁止编写或修改脚本，只准调用 `skill/scripts/` 现成脚本与宿主自身能力（AGENTS.md 硬性规则 6）；需要改动项目由所有者处理 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
@@ -104,9 +106,11 @@ product_cutout.psd                          ← 第4步：PSD
 - `trigger.ask_first`：改 `true` 后，仅发图不说话时会先询问再执行（默认直接执行）；
 - `trigger.keywords`：增减触发关键词；
 - `output.*`：改文件夹/文件命名格式；
-- `enhance.enabled`：`true`=每次抠图后统一清晰化增强 / `false`=关闭增强；
+- `enhance.enabled`：`true`=每次抠图前统一超分增强 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；
+- `enhance.upscale_multiple`：超分倍数（standard 1~8，默认 2）；
+- `enhance.target_long_edge`：目标长边 px（原图长边小于该值才超分，默认 1024）；
+- `enhance.fallback_strength`：无宿主增强能力时的兜底锐化强度（0.5~2.0）；
 - `psd.layers`：增删 PSD 图层。
 
 改完配置无需重新安装，agent 每次执行都会重新读取。

@@ -23,6 +23,9 @@
     "enabled": true,
     "mode": "uniform",
     "method": "host_native_first",
+    "upscale": true,
+    "upscale_multiple": 2,
+    "target_long_edge": 1024,
     "fallback_script": "skill/scripts/enhance_cutout.py",
     "fallback_strength": 1.0
   },
