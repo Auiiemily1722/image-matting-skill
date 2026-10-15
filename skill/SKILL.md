@@ -20,32 +20,27 @@ version: 1.0.0
 
 ## 工作流
 
-### 第 1 步：原图存档
+### 第 1 步：原图存档（含大图预处理）
 - 把用户发送的图片保存到项目 `input/` 目录，文件名保留原名；重名时追加时间戳后缀（如 `photo_20261014_153000.jpg`）。
+- **大图预处理（防"图片太大"）**：原图 >10MB 或长边 >4096 时，先用宿主 `mediakit-cli image resize-image` 把长边压到 2048 再存入 `input/`（各环节存在输入尺寸/体积上限，详见故障排查）。
 
 ### 第 2 步：清晰化（对原图；配置见 `config/skill.config.json` → `enhance`）
-- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。默认**超分保真 + 超分后线条锐化**（保字 + 拉锐边缘）；生图重绘默认关闭。
+- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。首选 **seedream 生图模型 4K 保色清晰化**（清晰度上限最高，已实测端到端可用）；**保字自检**不过（文字被改写）→ 自动回退**超分 + 线条锐化**保字路线；锐化脚本最终兜底。
 
-1. **超分（保字，默认）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
-   - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048）；standard 的 `--multiple` 上限 8；
-   - 若结果尺寸未放大，改用 `--target-width` / `--target-height` 指定目标尺寸重试（保持宽高比）；
-   - **自检（必须）**：用 Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
-   - **超分后追加线条锐化（关键，提升线条/字体锐利度）**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先用宿主；否则：
-     ```powershell
-     python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2
-     ```
-     （脚本只锐化 RGB、保留 alpha；此时输入是不透明超分图也适用。）锐化后文字仍保持原样、不被改写；
-   - 最终结果保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；下载 URL 用 `curl.exe -L -o "<保存路径>" "<URL>"`（见下方「下载约定」）。
+1. **seedream 清晰化（首选，默认开启）**：调用宿主**生图模型**，以原图为参考重绘高清版。
+   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 固定为："将参考图放大重绘为4K超高清版本，保持图片中图案原本的颜色与内容完全不变，让图片变清晰，线条更锐利，细节更丰富，不改变图案构图"；
+   - 尺寸：按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048；seedream 实际输出上限约 2048~2100，"4K"为营销叫法）；
+   - 结果保存为 `input/原图名_enhanced.png`，作为后续抠图与 PSD 的输入；下载用 `curl.exe -L -o "<保存路径>" "<URL>"`（见下方「下载约定」）；
+   - **保字自检（必须）**：清晰化后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）：若文字被改写（丢字/乱字/变体）或内容明显崩坏 → **该图回退**到下面的超分+锐化保字路线；
+   - 无文字纯图形图通常直接通过自检（实测纹身/纯图形效果最佳）。
 
-2. **professional 超分（可选，仅无文字纯图形图）**：无文字的纯图形/线条图可改用 `--tool-version professional`（发丝级，线条纹理明显更锐利）。
-   - **警告**：professional 会按语义重画个别字符（实测 `EVERY DAY'S` → `EVERY DAY IS`）——**含文字/字体的图一律禁用**，走上面的保字路径；
-   - 输入要求宽高均 ≥256：不满足时先 standard 放大到 ≥256，再 professional；
-   - 同样需尺寸校验，结果存 `input/原图名_enhanced.png`。
+2. **超分 + 线条锐化（保字 / 回退路线）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+   - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048；standard 上限 8）；若结果尺寸未放大，改用 `--target-width` / `--target-height` 重试（保持宽高比）；
+   - **自检（必须）**：Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
+   - **超分后追加线条锐化**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用）；锐化后文字不被改写；
+   - 最终结果存 `input/原图名_enhanced.png`；下载 URL 用 `curl.exe -L -o`。
 
-3. **生图重绘（默认关闭；仅当用户明确要求时启用）**：调用宿主**生图模型**，以原图为参考重绘高清版。
-   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 表达"以参考图为基础重绘为高清版本，保持主体与构图大致一致"；尺寸按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048）；
-   - **警告（执行前必须向用户说明）**：生成式重绘允许与原图有合理出入，文字/Logo/纹样会变体，小图易失真、涂抹感明显；必须保字/保形的图禁用此路径；
-   - 重绘结果明显失真、内容崩坏或不像原图 → 放弃本路径，改用超分；结果保存 `input/原图名_enhanced.png`。
+3. **professional 超分（可选）**：无文字纯图形图可改用 `--tool-version professional`（发丝级，线条纹理更锐利；**会按语义重写个别字符**——实测 `EVERY DAY'S`→`EVERY DAY IS`，含文字图禁用；输入须宽高均 ≥256，不足先 standard 预放大）；同样需尺寸校验。
 
 4. **锐化兜底**：超分不可用 → 直接用原图抠图，抠图完成后运行：
 
@@ -53,7 +48,7 @@ version: 1.0.0
    python skill/scripts/enhance_cutout.py --input <透明PNG> --output <增强PNG> --strength 1.0
    ```
 
-   只对 RGB 通道做 UnsharpMask 锐化，alpha 通道原样保留、尺寸不变；`--strength` 0.5~2.0。并在汇报中说明"本次仅锐化，未超分/未重绘"。
+   只对 RGB 通道做 UnsharpMask 锐化，alpha 通道原样保留、尺寸不变；`--strength` 0.5~2.0。并在汇报中说明"本次仅锐化，未清晰化/未超分"。
 
 ### 第 3 步：抠图（核心，调用宿主能力）
 - 对**第 2 步的输出图（超分原图或原图）**调用宿主 agent 内置的**图像抠图 / 去背景 / 主体分离**能力，生成透明底 PNG。

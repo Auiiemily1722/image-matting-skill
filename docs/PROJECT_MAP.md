@@ -26,7 +26,7 @@
 | `skill/scripts/build_psd.py` | 脚本 | PSD 兜底：原图+透明PNG → 三层 PSD | agent 调用 |
 | `skill/scripts/enhance_cutout.py` | 脚本 | 清晰化兜底：透明PNG → 锐化增强PNG（尺寸不变、alpha 保留） | agent 调用 |
 | `scripts/setup.ps1` | 脚本 | 一键配置：建目录、装依赖、可选安装技能 | 人类/agent 首次运行 |
-| `input/` | 数据 | **输入原图留档**（原图 + 超分中间图 `原图名_enhanced.png`） | agent 写入 |
+| `input/` | 数据 | **输入原图留档**（原图 + 清晰化中间图 `原图名_enhanced.png`（seedream/超分）） | agent 写入 |
 | `output/` | 产物 | **生成结果归档**（每批任务一个时间戳子文件夹，含各图 PNG+PSD） | agent 写入 |
 
 ## 3. 一次完整任务的路径流（示例）
@@ -39,7 +39,7 @@
    ▼
 input/product.jpg                          ← 第1步：原图存档
    │
-   ▼（清晰化：超分保真+线条锐化默认；professional 仅无文字图；重绘默认关）
+   ▼（清晰化：seedream 4K 保色优先 → 保字自检 → 回退超分+锐化）
 input/product_enhanced.png                 ← 第2步：清晰化（目标长边 2048）
    │
    ▼（agent 自身抠图能力）
@@ -85,7 +85,8 @@ product_cutout.psd                          ← 第4步：PSD
 | PSD 打不开 | 产物损坏/未走脚本 | 检查 `output/` 对应文件夹，重跑该任务 |
 | 中文文件名乱码 | 终端编码 | PowerShell 用 `chcp 65001` 或 Windows Terminal |
 | 增强后过锐 / 不自然 | 兜底锐化强度过高 | 调低 `config/skill.config.json` → `enhance.fallback_strength`（0.5 起步），或改 `mode: on_blur` 仅模糊时增强 |
-| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认**超分保真 + 超分后线条锐化**（目标长边 2048，倍率 2~8x）；仍不够清晰可调高 `enhance.target_long_edge` 或 `post_sharpen_strength`；无文字纯图形图可换 `--tool-version professional`（发丝级，注意会重写个别字符，含文字图禁用）；生图重绘默认关闭 |
+| 输出很糊 / 分辨率低 | 原图本身分辨率太低 | 流程默认 **seedream 4K 保色清晰化**（保字自检不过则回退超分+锐化）；仍不够清晰可调高 `enhance.regenerate_target_long_edge` / `target_long_edge` / `post_sharpen_strength`；无文字纯图形图可换 `--tool-version professional`（会重写个别字符，含文字图禁用） |
+| 图片太大无法处理 | 原图/中间图超输入上限（10MB 或超大尺寸） | 第 1 步大图预处理：`mediakit-cli image resize-image` 压到长边 2048 再继续；seedream 结果（~2000px JPEG）一般不会超 |
 | 执行窗口 agent 想自己写脚本 / 改项目 | 未读 AGENTS.md 或偏离定位 | 明确告知：禁止编写或修改脚本，只准调用 `skill/scripts/` 现成脚本与宿主自身能力（AGENTS.md 硬性规则 6）；需要改动项目由所有者处理 |
 | 想在多设备同步产物 | 产物默认不入库 | 见下节 git-lfs |
 
@@ -108,10 +109,11 @@ product_cutout.psd                          ← 第4步：PSD
 - `output.*`：改文件夹/文件命名格式；
 - `enhance.enabled`：`true`=每次抠图前统一清晰化 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.method`：`upscale_first`=超分保真优先（默认）→ 超分后线条锐化 → 锐化兜底；professional 超分与生图重绘为可选项；
+- `enhance.method`：`seedream_first`=seedream 4K 保色清晰化优先（默认）→ 保字自检 → 回退超分+锐化 → 锐化兜底；
+- `enhance.regenerate_enabled`：`true`=seedream 清晰化启用（默认）；`false`=关闭（仅走超分路线）；
+- `enhance.regenerate_target_long_edge`：seedream 目标长边 px（默认 2048；"4K"为营销叫法，模型实际输出上限约 2048~2100）；
+- `enhance.verify_text_fidelity`：`true`=保字自检开启（默认；清晰化后文字被改写则回退超分路线）；
 - `enhance.post_sharpen_strength`：超分后线条锐化强度（默认 1.2，0.5~2.0；保字且拉锐线条边缘）；
-- `enhance.regenerate_enabled`：`false`=生图重绘默认关闭（生成式重绘易失真/涂抹，仅用户点名时开启）；
-- `enhance.regenerate_target_long_edge`：生图重绘目标长边 px（默认 2048）；
 - `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
 - `enhance.target_long_edge`：超分目标长边 px（默认 2048；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
 - `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；

@@ -38,12 +38,12 @@
 
 ## 五、执行步骤（详见 `skill/SKILL.md`）
 
-1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；
-2. 清晰化：**先对原图做清晰化再抠图**：默认 **超分保真 + 超分后线条锐化**（`enhance-image --multiple <m>`，m=min(8, max(2, round(2048/原图长边)))，校验尺寸确实放大，未放大用 `--target-width/--target-height` 重试；超分后再对 RGB 做一次锐化 `enhance_cutout.py --strength 1.2`，保字且线条更锐利）；**无文字的纯图形图可改用 professional 超分**（`--tool-version professional`，输入须≥256px，注意会重写个别字符，含文字图禁用）；**生图重绘默认关闭**（仅用户明确要求"重新生成/允许出入"时使用，易失真/涂抹、文字纹样会变体，明显失真时放弃改用超分）；超分不可用时原图直接抠图+抠图后锐化兜底（`enhance_cutout.py`，汇报说明）；增强/重绘图存 `input/原图名_enhanced.png`；
+1. 原图存档：保存到 `input/`（保留原图，便于溯源与重跑）；**大图预处理**：原图 >10MB 或长边 >4096 时先 `mediakit-cli image resize-image` 压到长边 2048 再存；
+2. 清晰化：**先对原图做清晰化再抠图**：首选 **seedream 生图模型 4K 保色清晰化**（豆包 Work 走 doubao-creative-design 流程 image_edit 参考生成，prompt=“4k，保持图片中图案原本的颜色与内容完全不变，让图片变清晰”，目标长边 2048，结果存 `input/原图名_enhanced.png`）；**保字自检**：清晰化后与原图对比（image-ocr/目视），文字被改写/内容崩坏 → 该图**自动回退超分+线条锐化**保字路线（`enhance-image --multiple <m>`，m=min(8,max(2,round(2048/原图长边)))，校验尺寸放大，未放大用 `--target-width/--target-height` 重试，超分后再跑 `enhance_cutout.py --strength 1.2`）；无文字纯图形图可改用 professional 超分（会重写个别字符，含文字图禁用）；超分不可用时原图直接抠图+锐化兜底（汇报说明）；
 3. 抠图：对（超分后）原图调用自身抠图能力 → 透明底 PNG（**尺寸=抠图输入尺寸，必须 ≥ 原图**）；
 4. PSD：优先 agent 原生 PSD 能力；否则运行
    `python skill/scripts/build_psd.py --original <超分原图或原图> --cutout <透明PNG> --output <PSD路径>`
-5. 交付：对话框同时交付 PNG（超分高清版）+ PSD 两个文件；
+5. 交付：对话框同时交付 PNG（AI 高清清晰化版）+ PSD 两个文件；
 6. 归档：`output/YYYYMMDD_HHMMSS/` 下放置各图 `原图名_cutout.png` + `原图名_cutout.psd`（**同一批图共用一个文件夹**）。
 
 ## 六、硬性规则（不得违反）
