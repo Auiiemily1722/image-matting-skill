@@ -15,6 +15,8 @@ cd image-matting-skill
 .\scripts\setup.ps1
 ```
 
+> 在**另一台电脑**用豆包 Work 一键安装：把 `docs/一键安装提示词.md` 里的提示词整段发给 agent 即可（自动克隆+配置+自检）。
+
 ## 使用
 
 1. 让 agent 打开 / 接手本项目文件夹；
