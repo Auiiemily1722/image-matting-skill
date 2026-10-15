@@ -15,7 +15,9 @@ cd image-matting-skill
 .\scripts\setup.ps1
 ```
 
-> 在**另一台电脑**用豆包 Work 一键安装：把 `docs/一键安装提示词.md` 里的提示词整段发给 agent 即可（自动克隆+配置+自检）。
+> 在**另一台电脑**用豆包 Work 一键安装：把 `docs/一键安装提示词.md` 里的提示词整段发给 agent 即可（自动获取+配置+自检，无 git 环境会自动走 ZIP 方式）。
+>
+> 无 git 也可手动装：GitHub 页面 Download ZIP 或下载 `https://github.com/Auiiemily1722/image-matting-skill/archive/refs/heads/main.zip` 解压后运行 setup.ps1（缺点：无法 git pull 更新）。
 
 ## 使用
 
