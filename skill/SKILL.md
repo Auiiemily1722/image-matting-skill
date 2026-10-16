@@ -25,21 +25,18 @@ version: 1.0.0
 - **大图预处理（防"图片太大"）**：原图 >10MB 或长边 >4096 时，先用宿主 `mediakit-cli image resize-image` 把长边压到 2048 再存入 `input/`（各环节存在输入尺寸/体积上限，详见故障排查）。
 
 ### 第 2 步：清晰化（对原图；配置见 `config/skill.config.json` → `enhance`）
-- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。**按是否含文字分流（必须执行，第 2 步一开始就用 `image-ocr` 或目视判断原图是否含文字/字体）**：
-  - **含文字/字体的图** → **严禁调用生图模型（seedream）**，直接走「超分 + 线条锐化」保字路线（seedream 会把小文字改写/脑补成乱字，含文字图不走 seedream）；
-  - **无文字纯图形图** → 走「seedream 4K 保色清晰化」（清晰度上限最高）。
-  **一次只走一条路线（禁止两条都生成后乱选）**；任一路线结果都要自检，不符再降级。
+- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。**默认全图先走 seedream 4K 高清重绘**（清晰度上限最高，实测端到端可用）→ **自检通过（已清晰、无乱码/无风格崩坏）→ 直接进入抠图，省掉超分**；**自检不过 → 回退「超分 + 线条锐化」保字路线**；锐化脚本最终兜底。**一次只走一条路线（禁止两条都生成后乱选）**。
 
-1. **无文字图：seedream 清晰化（默认路线）**：调用宿主**生图模型**，以原图为参考重绘高清版。
+1. **seedream 4K 高清重绘（默认路线，全图先走）**：调用宿主**生图模型**，以原图为参考重绘高清版。
    - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`），prompt 固定为："将参考图放大重绘为4K超高清版本，保持图片中图案原本的颜色与内容完全不变，保持原有的平面插画效果与材质质感（不要变成毛绒、3D、立体或照片质感），让图片变清晰，线条更锐利，细节更丰富，不改变图案构图"；
    - 尺寸：按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048；seedream 实际输出上限约 2048~2100，"4K"为营销叫法）；
    - 下载 seedream 结果临时存为 `input/原图名_seedream_raw.png`（用 `curl.exe -L -o "<保存路径>" "<URL>"`，见下方「下载约定」）；
    - **锐化补强（必须，满足"线条锐利"硬性指标）**：seedream 输出线条偏平滑——对临时图先做一次 RGB UnsharpMask 锐化（强度 `enhance.post_sharpen_strength` 默认 1.2）：宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <原图名_seedream_raw.png> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用；锐化不改写文字）；
    - 最终 `input/原图名_enhanced.png` 作为后续抠图与 PSD 的输入；
-   - **自检（必须）**：清晰化后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）。**只认明显问题**：文字明显乱码/错字、内容崩坏、材质/风格明显改变（变毛绒/3D/照片质感/严重涂抹）→ 回退到 2 的超分路线；**轻微文字补全（如 PLANE→PLANET，原图文字太小看不清时的补全）不算改写，不得回退**；
+   - **自检（必须，通过则省掉超分）**：重绘后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）。**已清晰且无以下明显问题 → 直接进入第 3 步抠图（不再做超分）**：文字明显乱码/错字、内容崩坏、材质/风格明显改变（变毛绒/3D/照片质感/严重涂抹）→ 出现才回退到 2 的超分路线；**轻微文字补全（如 PLANE→PLANET，原图文字太小看不清时的补全）不算改写，不得回退**；
    - 无文字纯图形图通常直接通过自检（实测纹身/纯图形效果最佳）。
 
-2. **含文字图：超分 + 线条锐化（保字路线）**：`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+2. **回退路线：超分 + 线条锐化（保字）**：seedream 自检不过（文字乱码/内容崩坏/材质风格大变）时使用——`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
    - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048；standard 上限 8）；若结果尺寸未放大，改用 `--target-width` / `--target-height` 重试（保持宽高比）；
    - **尺寸自检（必须）**：Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
    - **超分后追加线条锐化**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用）；

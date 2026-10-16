@@ -22,7 +22,7 @@
   "enhance": {
     "enabled": true,
     "mode": "uniform",
-    "method": "split_by_text",
+    "method": "seedream_first",
     "regenerate_enabled": true,
     "regenerate_target_long_edge": 2048,
     "verify_text_fidelity": true,
