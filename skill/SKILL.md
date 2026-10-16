@@ -25,20 +25,20 @@ version: 1.0.0
 - **大图预处理（防"图片太大"）**：原图 >10MB 或长边 >4096 时，先用宿主 `mediakit-cli image resize-image` 把长边压到 2048 再存入 `input/`（各环节存在输入尺寸/体积上限，详见故障排查）。
 
 ### 第 2 步：清晰化（对原图；配置见 `config/skill.config.json` → `enhance`）
-- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。**默认全图先走 seedream 4K 高清重绘**（清晰度上限最高，实测端到端可用）→ **自检通过（已清晰、无乱码/无风格崩坏）→ 直接进入抠图，省掉超分**；**自检不过 → 回退「超分 + 线条锐化」保字路线**；锐化脚本最终兜底。**一次只走一条路线（禁止两条都生成后乱选）**。
+- 用户反馈直接抠图输出偏糊、分辨率低（原图本身多是小图）。因此**先对原图做清晰化，再抠图**。**全图统一执行：① 先超分保字（前置）→ ② seedream 4K 高清重绘（硬性，每张图都必须做）→ ③ RGB 锐化 → ④ 自检**；**自检通过（文字清晰、无乱码/无风格崩坏）→ 直接进入抠图（不再二次超分）**；**自检不过 → 回退「超分 + 线条锐化」保字路线**；锐化脚本最终兜底。**一次只走一条路线（禁止两条都生成后乱选）**。
 
-1. **seedream 4K 高清重绘（默认路线，全图先走）**：调用宿主**生图模型**，以原图为参考重绘高清版。**先判断图型**：
+1. **seedream 4K 高清重绘（硬性，全图必须）**：调用宿主**生图模型**，以**超分图为参考**重绘高清版。**先判断图型**：
    - **有人物/主体图**（人物、角色、玩偶、实物等）→ **抠背景**：prompt 用**主体保真版**（重点是保留主体、背景由后续抠图去除）："将参考图放大重绘为4K超高清版本，保持主体（人物/角色/物品）原本的造型、颜色与质感完全不变（不要改画成平面印花或刺绣），让图片变清晰，线条更锐利，细节更丰富，不改变主体形态与构图"；
    - **纯色背景 + 图形/Logo/纹样**（无人物主体）→ **默认印花**：prompt 用**印花版**："将参考图放大重绘为4K超高清版本，保持图片中图案原本的颜色与内容完全不变，保持原有的平面印花质感（图案是服装/服饰上的印花，平铺印制、无立体凹凸），让图片变清晰，线条更锐利，细节更丰富，不改变图案构图"；
-   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[原图]`）；
-   - 尺寸：按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048；seedream 实际输出上限约 2048~2100，"4K"为营销叫法）；
-   - 下载 seedream 结果临时存为 `input/原图名_seedream_raw.png`（用 `curl.exe -L -o "<保存路径>" "<URL>"`，见下方「下载约定」）；
-   - **锐化补强（必须，满足"线条锐利"硬性指标）**：seedream 输出线条偏平滑——对临时图先做一次 RGB UnsharpMask 锐化（强度 `enhance.post_sharpen_strength` 默认 1.2）：宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <原图名_seedream_raw.png> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用；锐化不改写文字）；
-   - 最终 `input/原图名_enhanced.png` 作为后续抠图与 PSD 的输入；
-   - **自检（必须，通过则省掉超分）**：重绘后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）。**已清晰且无以下明显问题 → 直接进入第 3 步抠图（不再做超分）**：文字明显乱码/错字、内容崩坏、**材质/风格明显改变（纯图形图偏离印花质感变刺绣/贴布绣/毛绒/3D/照片质感；主体图主体走样、被改画成印花平面/刺绣或严重涂抹）**→ 出现才回退到 2 的超分路线；**轻微文字补全（如 PLANE→PLANET，原图文字太小看不清时的补全）不算改写，不得回退**；
-   - 无文字纯图形图通常直接通过自检（实测纹身/纯图形效果最佳）。
+   - 豆包 Work 映射：走 `doubao-creative-design` 流程，用 `image_edit` 参考生成（`image_reference_url_list=[超分图]`）；
+   - **执行步骤**：
+     ① **先超分保字（前置，必须）**：对原图先做一次 `enhance-image --multiple <m>`（`m = min(8, max(2, round(target_long_edge / 原图长边)))`，尺寸校验见下方回退路线），存 `input/原图名_sr.png`——**目的：把模糊小字放大到 seedream 可辨识的尺度，大幅降低 seedream 改写文字的概率**（实测原图 200~300px 时 seedream 对几十像素的小字会脑补改写）；
+     ② **seedream 重绘**：以 `_sr.png` 为参考图执行 `image_edit`（图型对应 prompt）→ 下载结果临时存 `input/原图名_seedream_raw.png`（`curl.exe -L -o`，见「下载约定」）；尺寸：按原图比例、目标长边 `enhance.regenerate_target_long_edge`（默认 2048；seedream 实际输出上限约 2048~2100，"4K"为营销叫法）；
+     ③ **锐化补强（必须，满足"线条锐利"硬性指标）**：对 `_seedream_raw.png` 做 RGB UnsharpMask（强度 `enhance.post_sharpen_strength` 默认 1.2）→ 存 `input/原图名_enhanced.png`（宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <原图名_seedream_raw.png> --output <input/原图名_enhanced.png> --strength 1.2`；只锐化 RGB、保留 alpha，不改写文字）；
+     ④ **自检（必须，通过则省二次超分）**：重绘后与原图对比（可调用 `mediakit-cli image image-ocr` 或目视）。**已清晰且无以下明显问题 → 直接进入第 3 步抠图（不再二次超分）**：文字明显乱码/错字、内容崩坏、**材质/风格明显改变（纯图形图偏离印花质感变刺绣/贴布绣/毛绒/3D/照片质感；主体图主体走样、被改画成印花平面/刺绣或严重涂抹）**→ 出现才回退到 2 的路线；**轻微文字补全（如 PLANE→PLANET，原图文字太小看不清时的补全）不算改写，不得回退**；
+   - **seedream 是硬性要求：任何图不得因"含文字"直接跳过 seedream**（保字问题已由 ① 先超分解决）；只有 ④ 自检仍不过才允许回退到 2。
 
-2. **回退路线：超分 + 线条锐化（保字）**：seedream 自检不过（文字乱码/内容崩坏/材质风格大变）时使用——`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`
+2. **回退路线：超分 + 线条锐化（保字）**：仅当 seedream 自检仍不过（文字乱码/内容崩坏/材质风格大变）时使用（不再重绘）——`mediakit-cli image enhance-image --image-url <原图> --multiple <m>`（若第 2 步 ① 已超分且 ④ 自检不过，可直接复用该 `_sr.png` 做锐化，不必重新超分）
    - 倍率 `m = min(8, max(2, round(target_long_edge / 原图长边)))`（`target_long_edge` 默认 2048；standard 上限 8）；若结果尺寸未放大，改用 `--target-width` / `--target-height` 重试（保持宽高比）；
    - **尺寸自检（必须）**：Pillow 校验输出长边已大于原图长边（真放大才算成功）；未放大要重试，不得假装成功；
    - **超分后追加线条锐化**：对超分结果再做一次 RGB UnsharpMask，强度 `enhance.post_sharpen_strength`（默认 1.2）。宿主有锐化能力优先，否则 `python skill/scripts/enhance_cutout.py --input <超分图> --output <input/原图名_enhanced.png> --strength 1.2`（脚本只锐化 RGB、保留 alpha，不透明图同样适用）；
@@ -57,6 +57,7 @@ version: 1.0.0
 
 ### 第 3 步：抠图（核心，调用宿主能力）
 - 对**第 2 步的输出图（超分原图或原图）**调用宿主 agent 内置的**图像抠图 / 去背景 / 主体分离**能力，生成透明底 PNG。
+- **深色/黑色单一底色图案稿预处理（必须判断）**：原图背景为单一深色/黑色、图案为浅色/白描（如黑底 T 恤印花稿）时，抠图模型会把黑底误判为主体（实测：黑底被保留成"黑色 T 恤"还脑补出领口标签）。处理：先对输入图做**反色**（`mediakit-cli image invert-image` 或 PIL 反相：黑底→白底、白描→黑描）→ 抠图（白底易识别去除）→ **再反色恢复**（图案配色还原，背景保持透明）。彩色元素（如红玫瑰）反色后为补色，二次反色后完全复原，可放心使用。
 - **豆包 Work 环境映射（已验证可用）**：`mediakit-cli image remove-image-background --image-url <超分原图或原图> --scene <general|human|product>`
   - `human`=真人人像；`product`=商品主体；`general`=通用（动漫/二次元、商标/Logo、不确定主体，或前两者效果不佳时改用）；
   - 返回透明 PNG 下载 URL（**有效期 24 小时，须立即下载**），默认输出与输入同尺寸（即 ≥ 原图）；

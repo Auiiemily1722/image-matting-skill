@@ -28,6 +28,8 @@
     "verify_text_fidelity": true,
     "post_sharpen_after_seedream": true,
     "post_sharpen_strength": 1.2,
+    "upscale_before_regenerate": true,
+    "deep_bg_invert_cutout": true,
     "upscale": true,
     "upscale_multiple": 2,
     "target_long_edge": 2048,

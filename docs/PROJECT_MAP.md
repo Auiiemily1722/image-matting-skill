@@ -39,7 +39,7 @@
    ▼
 input/product.jpg                          ← 第1步：原图存档
    │
-   ▼（清晰化：seedream 4K 高清重绘优先 → 自检通过省超分直接抠图；不过回退超分+锐化）
+   ▼（清晰化：先超分保字→seedream 4K 硬性重绘→锐化→自检通过直接抠图；不过回退超分+锐化）
 input/product_enhanced.png                 ← 第2步：清晰化（目标长边 2048）
    │
    ▼（agent 自身抠图能力）
@@ -115,6 +115,8 @@ product_cutout.psd                          ← 第4步：PSD
 - `enhance.verify_text_fidelity`：`true`=自检开启（默认）：只认**明显乱码/错字、内容崩坏、材质/风格明显改变**，轻微文字补全（如 PLANE→PLANET）不算改写；超分结果同样自检；
 - `enhance.post_sharpen_after_seedream`：`true`=seedream 结果追加 RGB 锐化（默认 1.2；seedream 线条偏平滑，锐化满足"线条锐利"硬指标）；
 - `enhance.post_sharpen_strength`：超分后线条锐化强度（默认 1.2，0.5~2.0；保字且拉锐线条边缘）；
+- `enhance.upscale_before_regenerate`：`true`=seedream 重绘前先超分保字（默认；把模糊小字放大到 seedream 可辨识尺度，降低改写率）；
+- `enhance.deep_bg_invert_cutout`：`true`=深色/黑色单一底色图案稿抠图前先反色再抠、抠完反色恢复（默认；防黑底被误判成主体保留）；
 - `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
 - `enhance.target_long_edge`：超分目标长边 px（默认 2048；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
 - `enhance.fallback_strength`：兜底锐化强度（0.5~2.0）；
