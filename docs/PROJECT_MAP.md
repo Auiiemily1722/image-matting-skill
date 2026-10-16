@@ -109,10 +109,11 @@ product_cutout.psd                          ← 第4步：PSD
 - `output.*`：改文件夹/文件命名格式；
 - `enhance.enabled`：`true`=每次抠图前统一清晰化 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.method`：`seedream_first`=全图 seedream 4K 高清重绘优先（默认）→ 自检通过省超分直接抠图；不过回退超分+锐化 → 锐化兜底；
+- `enhance.method`：`seedream_first`=全图 seedream 4K 高清重绘优先（默认）→ 自检通过省超分直接抠图；仅内容崩坏/主体走样/材质大变才回退超分+锐化（小字乱码不回退）→ 锐化兜底；
 - `enhance.regenerate_enabled`：`true`=seedream 高清重绘启用（默认，全图优先）；`false`=关闭（全部走超分路线）；
 - `enhance.regenerate_target_long_edge`：seedream 目标长边 px（默认 2048；"4K"为营销叫法，模型实际输出上限约 2048~2100）；
-- `enhance.verify_text_fidelity`：`true`=自检开启（默认）：只认**明显乱码/错字、内容崩坏、材质/风格明显改变**，轻微文字补全（如 PLANE→PLANET）不算改写；超分结果同样自检；
+- `enhance.verify_text_fidelity`：`true`=自检开启（默认）：只认**整体内容崩坏、主体走样、材质/风格明显改变**；**小字/局部文字乱码不触发回退**（清晰度优先，交付 seedream 版并在汇报注明"小字区需人工找补"）；
+- `enhance.priority`：`clarity`=清晰度优先（默认）：seedream 小字乱码不回退，交付 seedream 版并注明人工找补；`text_fidelity`=保字优先：小字乱码回退超分保字；
 - `enhance.post_sharpen_after_seedream`：`true`=seedream 结果追加 RGB 锐化（默认 1.2；seedream 线条偏平滑，锐化满足"线条锐利"硬指标）；
 - `enhance.post_sharpen_strength`：超分后线条锐化强度（默认 1.2，0.5~2.0；保字且拉锐线条边缘）；
 - `enhance.upscale_before_regenerate`：`true`=seedream 重绘前先超分保字（默认；把模糊小字放大到 seedream 可辨识尺度，降低改写率）；
