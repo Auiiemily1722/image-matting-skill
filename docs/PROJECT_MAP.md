@@ -113,6 +113,7 @@ product_cutout.psd                          ← 第4步：PSD
 - `enhance.regenerate_enabled`：`true`=seedream 清晰化启用（默认，仅无文字图使用）；`false`=关闭（全部走超分路线）；
 - `enhance.regenerate_target_long_edge`：seedream 目标长边 px（默认 2048；"4K"为营销叫法，模型实际输出上限约 2048~2100）；
 - `enhance.verify_text_fidelity`：`true`=自检开启（默认）：只认**明显乱码/错字、内容崩坏、材质/风格明显改变**，轻微文字补全（如 PLANE→PLANET）不算改写；超分结果同样自检；
+- `enhance.post_sharpen_after_seedream`：`true`=seedream 结果追加 RGB 锐化（默认 1.2；seedream 线条偏平滑，锐化满足"线条锐利"硬指标）；
 - `enhance.post_sharpen_strength`：超分后线条锐化强度（默认 1.2，0.5~2.0；保字且拉锐线条边缘）；
 - `enhance.upscale_multiple`：超分倍数下限参考（2~8，默认 2；实际倍率按目标长边计算）；
 - `enhance.target_long_edge`：超分目标长边 px（默认 2048；倍率 m=min(8, max(2, round(目标长边/原图长边))))；
