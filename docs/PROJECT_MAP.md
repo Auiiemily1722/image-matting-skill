@@ -109,7 +109,7 @@ product_cutout.psd                          ← 第4步：PSD
 - `output.*`：改文件夹/文件命名格式；
 - `enhance.enabled`：`true`=每次抠图前统一清晰化 / `false`=关闭增强；
 - `enhance.mode`：`uniform`=全部增强（当前）；`on_blur`=仅模糊时增强（备选，暂未启用）；
-- `enhance.method`：`seedream_first`=全图 seedream 4K 高清重绘优先（默认）→ 自检通过省超分直接抠图；仅内容崩坏/主体走样/材质大变才回退超分+锐化（小字乱码不回退；**检出刺绣/毛绒等材质崩坏先重试 1 次 seedream，仍崩坏才回退**）→ 锐化兜底；
+- `enhance.method`：`seedream_first`=全图 seedream 4K 高清重绘优先（默认）→ 自检通过省超分直接抠图；仅内容崩坏/主体走样/材质大变才回退超分+锐化（小字乱码不回退；**检出刺绣/毛绒等材质崩坏先用「强化版 prompt」（图型 prompt + 严禁刺绣/针线/织物立体警告）重试 1 次 seedream，仍崩坏才回退**）→ 锐化兜底；
 - `enhance.regenerate_enabled`：`true`=seedream 高清重绘启用（默认，全图优先）；`false`=关闭（全部走超分路线）；
 - `enhance.regenerate_target_long_edge`：seedream 目标长边 px（默认 2048；"4K"为营销叫法，模型实际输出上限约 2048~2100）；
 - `enhance.verify_text_fidelity`：`true`=自检开启（默认）：只认**整体内容崩坏、主体走样、材质/风格明显改变**；**小字/局部文字乱码不触发回退**（清晰度优先，交付 seedream 版并在汇报注明"小字区需人工找补"）；
